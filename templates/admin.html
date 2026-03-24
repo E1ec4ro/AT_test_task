@@ -112,6 +112,19 @@
                 </table>
             </div>
         </div>
+
+        <div class="bg-white rounded-2xl border border-[#e0e6ed] p-6 mt-6">
+            <h2 class="text-lg font-bold text-[#2c3e50] mb-4">Технический лог приложения (app.log)</h2>
+            <div class="bg-[#0f172a] text-[#e2e8f0] rounded-xl p-4 text-xs overflow-auto max-h-[350px] font-mono leading-5">
+                {% if technical_logs %}
+                    {% for line in technical_logs %}
+                        <div>{{ line }}</div>
+                    {% endfor %}
+                {% else %}
+                    <div>Лог-файл пуст</div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </body>
 </html>

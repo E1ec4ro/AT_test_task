@@ -94,6 +94,18 @@ def log_user_activity(user_email: str, action: str, details: str = None):
     logging.info("user=%s action=%s details=%s", user_email, action, details)
 
 
+def get_last_log_lines(limit: int = 100):
+    log_file = os.path.join(_LOG_DIR, "app.log")
+    if not os.path.exists(log_file):
+        return []
+    try:
+        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        return [line.rstrip() for line in lines[-limit:]]
+    except Exception:
+        return ["Не удалось прочитать файл логов app.log"]
+
+
 with app.app_context():
     db.create_all()
 
@@ -106,6 +118,7 @@ def login():
         action = request.form.get('action')
 
         if not email_or_login or not password:
+            logging.warning("Login/register attempt with empty fields")
             return render_template('login.html', error="Заполните все поля")
 
         user = User.query.filter_by(email=email_or_login).first()
@@ -136,6 +149,8 @@ def login():
 
         else:
             if not user or not user.check_password(password):
+                log_user_activity(email_or_login, 'login_failed')
+                logging.warning("Failed login for user=%s", email_or_login)
                 return render_template('login.html', error="Неверная почта или пароль")
 
             if not user.is_verified:
@@ -208,6 +223,7 @@ def admin_panel():
     if not user_email:
         return redirect(url_for('login'))
     if user_email.lower() != ADMIN_EMAIL:
+        logging.warning("Forbidden admin access attempt by user=%s", user_email)
         return redirect(url_for('index'))
 
     recent_logins = (
@@ -236,13 +252,15 @@ def admin_panel():
         .limit(100)
         .all()
     )
+    technical_logs = get_last_log_lines(120)
 
     return render_template(
         'admin.html',
         admin_email=user_email,
         recent_logins=recent_logins,
         usage_stats=usage_stats,
-        recent_activities=recent_activities
+        recent_activities=recent_activities,
+        technical_logs=technical_logs
     )
 
 
@@ -258,6 +276,7 @@ def logout():
 def process():
     user_email = session.get('user_email')
     if not user_email:
+        logging.warning("Unauthorized /process attempt")
         return jsonify({'error': 'Неавторизован'}), 401
 
     user = User.query.filter_by(email=user_email).first()
