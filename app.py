@@ -82,6 +82,13 @@ class UserActivity(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
 
 
+class GeneratedFile(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_email = db.Column(db.String(120), nullable=False)
+    filename = db.Column(db.String(255), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+
 def log_user_activity(user_email: str, action: str, details: str = None):
     activity = UserActivity(
         user_email=user_email or "anonymous",
@@ -246,9 +253,17 @@ def admin_panel():
         db.session.query(
             UserActivity.user_email,
             func.count(UserActivity.id).label('usage_count'),
+            func.coalesce(
+                func.sum(
+                    func.cast(
+                        func.replace(UserActivity.details, 'records=', ''),
+                        db.Integer
+                    )
+                ), 0
+            ).label('total_records'),
             func.max(UserActivity.created_at).label('last_usage')
         )
-        .filter(UserActivity.action == 'ai_process_success')
+        .filter(UserActivity.action == 'ai_process_success', UserActivity.details.like('records=%'))
         .group_by(UserActivity.user_email)
         .order_by(func.count(UserActivity.id).desc())
         .all()
@@ -338,6 +353,10 @@ def process():
         if existing_excel_path and os.path.exists(existing_excel_path):
             os.remove(existing_excel_path)
 
+        generated = GeneratedFile(user_email=user_email, filename=output_filename)
+        db.session.add(generated)
+        db.session.commit()
+
         log_user_activity(user_email, 'ai_process_success', details=f"records={len(results)}")
         return jsonify({'download_url': f'/download/{output_filename}'})
 
@@ -350,11 +369,21 @@ def process():
 
 @app.route('/download/<filename>')
 def download(filename):
-    if not session.get('user_email'):
+    user_email = session.get('user_email')
+    if not user_email:
         return "Неавторизован", 401
     safe = os.path.basename(filename)
     if not safe or safe != filename:
         return "Некорректное имя файла", 400
+
+    file_owner = GeneratedFile.query.filter_by(filename=safe).first()
+    if not file_owner:
+        return "Файл не найден в реестре", 404
+    is_admin = user_email.lower() == ADMIN_EMAIL
+    if not is_admin and file_owner.user_email.lower() != user_email.lower():
+        logging.warning("Forbidden file download attempt user=%s file=%s", user_email, safe)
+        return "Недостаточно прав для скачивания файла", 403
+
     path = os.path.join(app.config['UPLOAD_FOLDER'], safe)
     if not os.path.isfile(path):
         return "Файл не найден или срок хранения истёк", 404
