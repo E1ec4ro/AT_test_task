@@ -1,0 +1,36 @@
+2026-03-24 16:06:26,824 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.31.29:5000
+2026-03-24 16:06:26,824 INFO [33mPress CTRL+C to quit[0m
+2026-03-24 16:06:26,826 INFO  * Restarting with stat
+2026-03-24 16:06:27,920 WARNING  * Debugger is active!
+2026-03-24 16:06:27,923 INFO  * Debugger PIN: 103-238-475
+2026-03-24 16:06:43,685 INFO 192.168.31.29 - - [24/Mar/2026 16:06:43] "[32mGET / HTTP/1.1[0m" 302 -
+2026-03-24 16:06:43,697 INFO 192.168.31.29 - - [24/Mar/2026 16:06:43] "GET /login HTTP/1.1" 200 -
+2026-03-24 16:06:43,808 INFO 192.168.31.29 - - [24/Mar/2026 16:06:43] "[33mGET /static/logo.png HTTP/1.1[0m" 404 -
+2026-03-24 16:06:45,393 INFO 192.168.31.29 - - [24/Mar/2026 16:06:45] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-24 16:06:51,868 INFO 192.168.31.29 - - [24/Mar/2026 16:06:51] "POST /login HTTP/1.1" 200 -
+2026-03-24 16:06:51,897 INFO 192.168.31.29 - - [24/Mar/2026 16:06:51] "[33mGET /static/logo.png HTTP/1.1[0m" 404 -
+2026-03-24 16:06:56,570 INFO user=electro_ded@inbox.ru action=login_success details=None
+2026-03-24 16:06:56,571 INFO 192.168.31.29 - - [24/Mar/2026 16:06:56] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-03-24 16:06:56,577 INFO 192.168.31.29 - - [24/Mar/2026 16:06:56] "GET / HTTP/1.1" 200 -
+2026-03-24 16:06:56,597 INFO 192.168.31.29 - - [24/Mar/2026 16:06:56] "[33mGET /static/logo.png HTTP/1.1[0m" 404 -
+2026-03-24 16:06:58,694 INFO 192.168.31.29 - - [24/Mar/2026 16:06:58] "GET /admin HTTP/1.1" 200 -
+2026-03-24 16:07:08,899 INFO 192.168.31.29 - - [24/Mar/2026 16:07:08] "GET / HTTP/1.1" 200 -
+2026-03-24 16:07:08,931 INFO 192.168.31.29 - - [24/Mar/2026 16:07:08] "[33mGET /static/logo.png HTTP/1.1[0m" 404 -
+2026-03-24 16:07:35,242 INFO HTTP Request: POST https://api.aitunnel.ru/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-24 16:07:35,303 INFO user=electro_ded@inbox.ru action=ai_process_success details=records=7
+2026-03-24 16:07:35,304 INFO 192.168.31.29 - - [24/Mar/2026 16:07:35] "POST /process HTTP/1.1" 200 -
+2026-03-24 16:07:35,323 INFO 192.168.31.29 - - [24/Mar/2026 16:07:35] "GET /download/result_46e8c2ab.xlsx HTTP/1.1" 200 -
+2026-03-24 16:08:02,744 INFO 192.168.31.29 - - [24/Mar/2026 16:08:02] "GET /admin HTTP/1.1" 200 -
+2026-03-24 16:10:30,543 INFO 192.168.31.29 - - [24/Mar/2026 16:10:30] "GET / HTTP/1.1" 200 -
+2026-03-24 16:10:30,568 INFO 192.168.31.29 - - [24/Mar/2026 16:10:30] "[33mGET /static/logo.png HTTP/1.1[0m" 404 -
+2026-03-24 16:10:32,611 INFO user=electro_ded@inbox.ru action=logout details=None
+2026-03-24 16:10:32,611 INFO 192.168.31.29 - - [24/Mar/2026 16:10:32] "[32mGET /logout HTTP/1.1[0m" 302 -
+2026-03-24 16:10:32,616 INFO 192.168.31.29 - - [24/Mar/2026 16:10:32] "GET /login HTTP/1.1" 200 -
+2026-03-24 16:10:32,642 INFO 192.168.31.29 - - [24/Mar/2026 16:10:32] "[33mGET /static/logo.png HTTP/1.1[0m" 404 -
+2026-03-24 16:10:49,159 INFO user=electroded555@gmail.com action=register_code_sent details=recipient=electro_ded@inbox.ru
+2026-03-24 16:10:49,160 INFO 192.168.31.29 - - [24/Mar/2026 16:10:49] "[32mPOST /login HTTP/1.1[0m" 302 -
+2026-03-24 16:10:49,172 INFO 192.168.31.29 - - [24/Mar/2026 16:10:49] "GET /verify?email=electroded555@gmail.com HTTP/1.1" 200 -
+2026-03-24 16:10:49,211 INFO 192.168.31.29 - - [24/Mar/2026 16:10:49] "[33mGET /static/logo.png HTTP/1.1[0m" 404 -

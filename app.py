@@ -11,7 +11,7 @@ from excel_handler import ExcelHandler
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import func
+from collections import defaultdict
 
 load_dotenv()
 
@@ -21,7 +21,11 @@ _DEFAULT_UPLOADS = os.path.join(_BASE_DIR, 'uploads')
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 app.config['UPLOAD_FOLDER'] = _DEFAULT_UPLOADS
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+_MAX_BYTES_PER_FILE = 16 * 1024 * 1024
+_MAX_UPLOAD_FILES = 32
+app.config['MAX_CONTENT_LENGTH'] = _MAX_BYTES_PER_FILE * _MAX_UPLOAD_FILES
+
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 _LOG_DIR = os.path.join(_BASE_DIR, 'logs')
 os.makedirs(_LOG_DIR, exist_ok=True)
@@ -113,6 +117,69 @@ def get_last_log_lines(limit: int = 100):
         return ["Не удалось прочитать файл логов app.log"]
 
 
+def _cleanup_upload_paths(saved_paths, existing_excel_path=None):
+    for p in saved_paths or []:
+        if p and os.path.exists(p):
+            try:
+                os.remove(p)
+            except OSError:
+                logging.warning("Could not remove temp file %s", p)
+    if existing_excel_path and os.path.exists(existing_excel_path):
+        try:
+            os.remove(existing_excel_path)
+        except OSError:
+            logging.warning("Could not remove temp excel %s", existing_excel_path)
+
+
+def _parse_records_from_details(details):
+    if not details or not details.startswith('records='):
+        return 0
+    try:
+        return int(details.replace('records=', '').strip())
+    except ValueError:
+        return 0
+
+
+class UsageStat:
+    __slots__ = ('user_email', 'usage_count', 'total_records', 'last_usage')
+
+    def __init__(self, user_email, usage_count, total_records, last_usage):
+        self.user_email = user_email
+        self.usage_count = usage_count
+        self.total_records = total_records
+        self.last_usage = last_usage
+
+
+def build_usage_stats():
+    rows = (
+        UserActivity.query
+        .filter(
+            UserActivity.action == 'ai_process_success',
+            UserActivity.details.like('records=%')
+        )
+        .all()
+    )
+    agg = defaultdict(lambda: {'count': 0, 'total_records': 0, 'last_usage': None})
+    for r in rows:
+        e = r.user_email
+        agg[e]['count'] += 1
+        agg[e]['total_records'] += _parse_records_from_details(r.details)
+        if r.created_at:
+            lu = agg[e]['last_usage']
+            if lu is None or r.created_at > lu:
+                agg[e]['last_usage'] = r.created_at
+    out = [
+        UsageStat(
+            email,
+            v['count'],
+            v['total_records'],
+            v['last_usage'],
+        )
+        for email, v in sorted(agg.items(), key=lambda x: -x[1]['count'])
+    ]
+    return out
+
+
 with app.app_context():
     db.create_all()
 
@@ -145,10 +212,10 @@ def login():
             try:
                 msg = Message("Код подтверждения - Интеллектуальный помощник",
                               sender=app.config['MAIL_USERNAME'],
-                              recipients=['electro_ded@inbox.ru'])
+                              recipients=[email_or_login])
                 msg.body = f"Ваш код для подтверждения почты: {code}\nКод действует 10 минут."
                 mail.send(msg)
-                log_user_activity(email_or_login, 'register_code_sent', details="recipient=electro_ded@inbox.ru")
+                log_user_activity(email_or_login, 'register_code_sent', details=f"recipient={email_or_login}")
                 return redirect(url_for('verify', email=email_or_login))
             except Exception as e:
                 logging.exception("Registration mail send failed for %s", email_or_login)
@@ -168,10 +235,10 @@ def login():
 
                 msg = Message("Подтвердите почту - Интеллектуальный помощник",
                               sender=app.config['MAIL_USERNAME'],
-                              recipients=['electro_ded@inbox.ru'])
+                              recipients=[email_or_login])
                 msg.body = f"Ваш код для подтверждения почты: {code}"
                 mail.send(msg)
-                log_user_activity(email_or_login, 'login_code_resent', details="recipient=electro_ded@inbox.ru")
+                log_user_activity(email_or_login, 'login_code_resent', details=f"recipient={email_or_login}")
                 return redirect(url_for('verify', email=email_or_login))
 
             session['user_email'] = email_or_login
@@ -198,13 +265,20 @@ def verify():
             user.is_verified = True
             user.auth_code = None
             user.last_login = datetime.now()
+            sid = str(uuid.uuid4())
+            user.session_id = sid
             session['user_email'] = email
+            session['session_id'] = sid
             db.session.commit()
             log_user_activity(email, 'verify_success')
             return redirect(url_for('index'))
         if email:
             log_user_activity(email, 'verify_failed')
-        return render_template('verify.html', email=email, error="Неверный код или срок действия истек")
+        return render_template(
+            'verify.html',
+            email=email,
+            error="Неверный код или срок действия истек"
+        )
 
     return render_template('verify.html', email=email)
 
@@ -241,25 +315,7 @@ def admin_panel():
         .all()
     )
 
-    usage_stats = (
-        db.session.query(
-            UserActivity.user_email,
-            func.count(UserActivity.id).label('usage_count'),
-            func.coalesce(
-                func.sum(
-                    func.cast(
-                        func.replace(UserActivity.details, 'records=', ''),
-                        db.Integer
-                    )
-                ), 0
-            ).label('total_records'),
-            func.max(UserActivity.created_at).label('last_usage')
-        )
-        .filter(UserActivity.action == 'ai_process_success', UserActivity.details.like('records=%'))
-        .group_by(UserActivity.user_email)
-        .order_by(func.count(UserActivity.id).desc())
-        .all()
-    )
+    usage_stats = build_usage_stats()
 
     recent_activities = (
         UserActivity.query
@@ -269,13 +325,17 @@ def admin_panel():
     )
     technical_logs = get_last_log_lines(120)
 
+    all_users = User.query.order_by(User.email.asc()).all()
+
     return render_template(
         'admin.html',
         admin_email=user_email,
         recent_logins=recent_logins,
         usage_stats=usage_stats,
         recent_activities=recent_activities,
-        technical_logs=technical_logs
+        technical_logs=technical_logs,
+        all_users=all_users,
+        admin_email_const=ADMIN_EMAIL,
     )
 
 
@@ -284,7 +344,32 @@ def logout():
     if session.get('user_email'):
         log_user_activity(session.get('user_email'), 'logout')
     session.pop('user_email', None)
+    session.pop('session_id', None)
     return redirect(url_for('login'))
+
+
+@app.route('/admin/user/<int:user_id>/ban', methods=['POST'])
+def admin_ban_user(user_id):
+    if session.get('user_email', '').lower() != ADMIN_EMAIL:
+        return redirect(url_for('index'))
+    user = User.query.get_or_404(user_id)
+    if user.email.lower() == ADMIN_EMAIL:
+        return redirect(url_for('admin_panel'))
+    user.is_banned = True
+    db.session.commit()
+    log_user_activity(ADMIN_EMAIL, 'admin_ban_user', details=user.email)
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/user/<int:user_id>/unban', methods=['POST'])
+def admin_unban_user(user_id):
+    if session.get('user_email', '').lower() != ADMIN_EMAIL:
+        return redirect(url_for('index'))
+    user = User.query.get_or_404(user_id)
+    user.is_banned = False
+    db.session.commit()
+    log_user_activity(ADMIN_EMAIL, 'admin_unban_user', details=user.email)
+    return redirect(url_for('admin_panel'))
 
 
 @app.route('/process', methods=['POST'])
@@ -299,24 +384,34 @@ def process():
         session.clear()
         return jsonify({'error': 'session_expired', 'redirect': url_for('login', error="Сессия завершена или аккаунт заблокирован")}), 401
 
+    saved_paths = []
+    existing_excel_path = None
     try:
         text_content = request.form.get('text', '')
         files = request.files.getlist('files')
         existing_excel = request.files.get('existing_excel')
 
-        saved_paths = []
+        file_count = 0
         for file in files:
             if file.filename:
+                file_count += 1
+                if file_count > _MAX_UPLOAD_FILES:
+                    return jsonify({'error': f'Слишком много файлов (максимум {_MAX_UPLOAD_FILES}).'}), 400
                 filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
                 path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(path)
+                if os.path.getsize(path) > _MAX_BYTES_PER_FILE:
+                    os.remove(path)
+                    return jsonify({'error': f'Файл слишком большой (максимум {_MAX_BYTES_PER_FILE // (1024 * 1024)} МБ на файл).'}), 400
                 saved_paths.append(path)
 
-        existing_excel_path = None
         if existing_excel and existing_excel.filename:
             ex_filename = secure_filename(f"base_{uuid.uuid4().hex[:8]}_{existing_excel.filename}")
             existing_excel_path = os.path.join(app.config['UPLOAD_FOLDER'], ex_filename)
             existing_excel.save(existing_excel_path)
+            if os.path.getsize(existing_excel_path) > _MAX_BYTES_PER_FILE:
+                _cleanup_upload_paths(saved_paths, existing_excel_path)
+                return jsonify({'error': f'Файл Excel слишком большой (максимум {_MAX_BYTES_PER_FILE // (1024 * 1024)} МБ).'}), 400
 
         results = processor.process_content(text=text_content, file_paths=saved_paths)
 
@@ -327,6 +422,7 @@ def process():
 
         if not results:
             log_user_activity(user_email, 'ai_process_no_results')
+            _cleanup_upload_paths(saved_paths, existing_excel_path)
             return jsonify({'error': 'Компании не найдены в предоставленных данных.'}), 404
 
         output_filename = f"result_{uuid.uuid4().hex[:8]}.xlsx"
@@ -339,11 +435,7 @@ def process():
         else:
             ExcelHandler.create_new(output_path, results)
 
-        for p in saved_paths:
-            if os.path.exists(p):
-                os.remove(p)
-        if existing_excel_path and os.path.exists(existing_excel_path):
-            os.remove(existing_excel_path)
+        _cleanup_upload_paths(saved_paths, existing_excel_path)
 
         generated = GeneratedFile(user_email=user_email, filename=output_filename)
         db.session.add(generated)
@@ -354,6 +446,7 @@ def process():
 
     except Exception as e:
         logging.exception("Processing failed for user=%s", user_email)
+        _cleanup_upload_paths(saved_paths, existing_excel_path)
         if user_email:
             log_user_activity(user_email, 'ai_process_error', details=str(e)[:500])
         return jsonify({'error': str(e)}), 500

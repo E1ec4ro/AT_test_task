@@ -16,7 +16,7 @@ class ExcelHandler:
     @staticmethod
     def create_new(file_path: str, data: List[Dict[str, Any]]):
         df = pd.DataFrame(columns=ExcelHandler.COLUMNS)
-        ExcelHandler._append_to_df(df, data, start_no=1)
+        df = ExcelHandler._append_to_df(df, data, start_no=1)
         df.to_excel(file_path, index=False)
 
     @staticmethod
@@ -119,7 +119,9 @@ class ExcelHandler:
         }
 
     @staticmethod
-    def _append_to_df(df: pd.DataFrame, data: List[Dict[str, Any]], start_no: int):
-        for i, item in enumerate(data):
-            row = ExcelHandler._map_item_to_row(item, start_no + i)
-            df.loc[len(df)] = row
+    def _append_to_df(df: pd.DataFrame, data: List[Dict[str, Any]], start_no: int) -> pd.DataFrame:
+        if not data:
+            return df
+        rows = [ExcelHandler._map_item_to_row(item, start_no + i) for i, item in enumerate(data)]
+        add_df = pd.DataFrame(rows, columns=ExcelHandler.COLUMNS)
+        return pd.concat([df, add_df], ignore_index=True)
