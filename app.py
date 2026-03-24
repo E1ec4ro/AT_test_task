@@ -1,6 +1,7 @@
 import os
 import uuid
 import random
+import logging
 from flask import Flask, render_template, request, send_file, jsonify, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
@@ -17,10 +18,12 @@ _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_UPLOADS = os.path.join(_BASE_DIR, 'uploads')
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
 app.config['UPLOAD_FOLDER'] = _DEFAULT_UPLOADS
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+_LOG_DIR = os.path.join(_BASE_DIR, 'logs')
+os.makedirs(_LOG_DIR, exist_ok=True)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -36,9 +39,15 @@ app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
 app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True') == 'True'
 app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'False') == 'True'
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'aiotdelat@gmail.com')
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'electro_ded@inbox.ru')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 mail = Mail(app)
+
+logging.basicConfig(
+    filename=os.path.join(_LOG_DIR, "app.log"),
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
 
 
 class User(db.Model):
@@ -58,6 +67,29 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+class UserActivity(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_email = db.Column(db.String(120), nullable=False)
+    action = db.Column(db.String(64), nullable=False)
+    details = db.Column(db.Text)
+    ip_address = db.Column(db.String(64))
+    user_agent = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+
+def log_user_activity(user_email: str, action: str, details: str = None):
+    activity = UserActivity(
+        user_email=user_email or "anonymous",
+        action=action,
+        details=details,
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent', '')[:255]
+    )
+    db.session.add(activity)
+    db.session.commit()
+    logging.info("user=%s action=%s details=%s", user_email, action, details)
 
 
 with app.app_context():
@@ -94,8 +126,10 @@ def login():
                               recipients=[email_or_login])
                 msg.body = f"Ваш код для подтверждения почты: {code}\nКод действует 10 минут."
                 mail.send(msg)
+                log_user_activity(email_or_login, 'register_code_sent')
                 return redirect(url_for('verify', email=email_or_login))
             except Exception as e:
+                logging.exception("Registration mail send failed for %s", email_or_login)
                 return render_template('login.html', error=f"Ошибка отправки письма: {str(e)}")
 
         else:
@@ -113,6 +147,7 @@ def login():
                               recipients=[email_or_login])
                 msg.body = f"Ваш код для подтверждения почты: {code}"
                 mail.send(msg)
+                log_user_activity(email_or_login, 'login_code_resent')
                 return redirect(url_for('verify', email=email_or_login))
 
             session['user_email'] = email_or_login
@@ -121,6 +156,7 @@ def login():
             session['session_id'] = user.session_id
 
             db.session.commit()
+            log_user_activity(email_or_login, 'login_success')
             return redirect(url_for('index'))
 
     return render_template('login.html')
@@ -140,7 +176,10 @@ def verify():
             user.last_login = datetime.now()
             session['user_email'] = email
             db.session.commit()
+            log_user_activity(email, 'verify_success')
             return redirect(url_for('index'))
+        if email:
+            log_user_activity(email, 'verify_failed')
         return render_template('verify.html', email=email, error="Неверный код или срок действия истек")
 
     return render_template('verify.html', email=email)
@@ -162,6 +201,8 @@ def index():
 
 @app.route('/logout')
 def logout():
+    if session.get('user_email'):
+        log_user_activity(session.get('user_email'), 'logout')
     session.pop('user_email', None)
     return redirect(url_for('login'))
 
@@ -204,6 +245,7 @@ def process():
             db.session.commit()
 
         if not results:
+            log_user_activity(user_email, 'ai_process_no_results')
             return jsonify({'error': 'Компании не найдены в предоставленных данных.'}), 404
 
         output_filename = f"result_{uuid.uuid4().hex[:8]}.xlsx"
@@ -222,9 +264,13 @@ def process():
         if existing_excel_path and os.path.exists(existing_excel_path):
             os.remove(existing_excel_path)
 
+        log_user_activity(user_email, 'ai_process_success', details=f"records={len(results)}")
         return jsonify({'download_url': f'/download/{output_filename}'})
 
     except Exception as e:
+        logging.exception("Processing failed for user=%s", user_email)
+        if user_email:
+            log_user_activity(user_email, 'ai_process_error', details=str(e)[:500])
         return jsonify({'error': str(e)}), 500
 
 
