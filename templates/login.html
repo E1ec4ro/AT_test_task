@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход — Интеллектуальный помощник</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-[#f4f7fa] min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-[30px] shadow-xl border border-[#e0e6ed] max-w-md w-full p-10">
+        
+        <!-- Logo -->
+        <div class="flex justify-center mb-8">
+            <img src="/static/logo.png" alt="Logo" class="h-20 object-contain" onerror="this.style.display='none'">
+        </div>
+
+        <div class="text-center mb-8">
+            <h1 id="title" class="text-2xl font-extrabold text-[#2c3e50] tracking-tight">Добро пожаловать</h1>
+            <p id="subtitle" class="text-[#7f8c8d] mt-2 text-sm">Введите данные для входа</p>
+        </div>
+
+        {% if error %}
+        <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/login" method="POST" class="space-y-6">
+            <input type="hidden" name="action" id="authAction" value="login">
+            <div>
+                <label class="block text-xs font-bold text-[#34495e] uppercase tracking-wider mb-2 ml-1" id="emailLabel">Email адрес</label>
+                <input type="text" name="email" required 
+                    class="w-full border border-[#dcdfe6] rounded-xl p-4 text-sm focus:ring-4 focus:ring-blue-100 focus:border-[#3498db] outline-none transition-all" 
+                    placeholder="example@mail.ru" id="emailInput">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-[#34495e] uppercase tracking-wider mb-2 ml-1">Пароль</label>
+                <input type="password" name="password" required 
+                    class="w-full border border-[#dcdfe6] rounded-xl p-4 text-sm focus:ring-4 focus:ring-blue-100 focus:border-[#3498db] outline-none transition-all" 
+                    placeholder="••••••••">
+            </div>
+
+            <button type="submit" id="submitBtn" class="w-full bg-[#2c3e50] hover:bg-[#1a252f] text-white font-extrabold py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 active:scale-95">
+                ВОЙТИ
+            </button>
+        </form>
+
+        <div class="mt-6 text-center">
+            <button onclick="toggleAuth()" id="toggleBtn" class="text-sm text-[#3498db] hover:underline font-medium">
+                Нет аккаунта? Зарегистрироваться
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function toggleAuth() {
+            const actionInput = document.getElementById('authAction');
+            const title = document.getElementById('title');
+            const subtitle = document.getElementById('subtitle');
+            const submitBtn = document.getElementById('submitBtn');
+            const toggleBtn = document.getElementById('toggleBtn');
+            const emailLabel = document.getElementById('emailLabel');
+            const emailInput = document.getElementById('emailInput');
+
+            if (actionInput.value === 'login') {
+                actionInput.value = 'register';
+                title.innerText = 'Регистрация';
+                subtitle.innerText = 'Создайте аккаунт для работы';
+                submitBtn.innerText = 'ЗАРЕГИСТРИРОВАТЬСЯ';
+                toggleBtn.innerText = 'Уже есть аккаунт? Войти';
+                emailLabel.innerText = 'Email адрес';
+                emailInput.type = 'email';
+                emailInput.placeholder = 'example@mail.ru';
+            } else {
+                actionInput.value = 'login';
+                title.innerText = 'Добро пожаловать';
+                subtitle.innerText = 'Введите данные для входа';
+                submitBtn.innerText = 'ВОЙТИ';
+                toggleBtn.innerText = 'Нет аккаунта? Зарегистрироваться';
+                emailLabel.innerText = 'Email адрес';
+                emailInput.type = 'text';
+                emailInput.placeholder = 'example@mail.ru';
+            }
+        }
+    </script>
+</body>
+</html>

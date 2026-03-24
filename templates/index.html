@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интеллектуальный помощник — Документ-Парсер</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .drop-zone--over { border-color: #3498db; background-color: #f0f9ff; transform: scale(1.01); }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-[#f4f7fa] min-h-screen flex items-center justify-center p-4 py-12">
+    <div class="bg-white rounded-[30px] shadow-xl border border-[#e0e6ed] max-w-2xl w-full p-8 md:p-12 relative">
+        
+        <div class="absolute top-6 right-6 flex items-center gap-4">
+            <a href="/logout" class="flex items-center text-xs font-bold text-gray-400 hover:text-red-500 transition-colors uppercase tracking-widest group">
+                <span>Выйти</span>
+                <svg class="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                </svg>
+            </a>
+        </div>
+
+        <!-- Logo -->
+        <div class="flex justify-center mb-10">
+            <img src="/static/logo.png" alt="Logo" class="h-24 object-contain" onerror="this.style.display='none'">
+        </div>
+
+        <div class="text-center mb-10">
+            <h1 class="text-3xl font-extrabold text-[#2c3e50] tracking-tight text-center">Интеллектуальный помощник</h1>
+            <p class="text-[#7f8c8d] mt-2">Автоматизированная обработка данных в Excel</p>
+        </div>
+
+        <!-- Main Drop Zone -->
+        <div class="mb-8">
+            <label class="block text-sm font-bold text-[#34495e] mb-3 ml-1 text-center">Загрузите файлы для обработки:</label>
+            <div id="dropZone" class="border-2 border-dashed border-[#3498db] rounded-2xl bg-[#f0f9ff] p-10 text-center cursor-pointer transition-all duration-300 hover:bg-[#e6f4ff] group">
+                <div class="text-[#3498db] mb-4">
+                    <svg class="w-10 h-10 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-lg font-semibold">Перетащите файлы сюда</p>
+                    <p class="text-sm opacity-70">или нажмите для выбора</p>
+                </div>
+                <p class="text-xs text-gray-400 italic">Картинки, PDF, Word, Excel, TXT</p>
+                <input type="file" id="fileInput" multiple class="hidden">
+            </div>
+            <div id="fileList" class="hidden mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100 text-sm text-gray-600">
+                <ul id="filesUl" class="list-disc list-inside space-y-1"></ul>
+            </div>
+        </div>
+
+        <!-- Excel Append Zone -->
+        <div class="mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-200">
+            <label class="block text-sm font-bold text-[#34495e] mb-3">Дополнить существующий Excel (необязательно):</label>
+            <div class="flex items-center space-x-4">
+                <button onclick="document.getElementById('excelInput').click()" class="bg-white border border-gray-300 hover:border-blue-400 text-gray-700 px-4 py-2 rounded-lg text-sm transition-all shadow-sm flex items-center">
+                    <svg class="w-4 h-4 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Выбрать файл
+                </button>
+                <span id="excelFileName" class="text-xs text-gray-500 italic">Файл не выбран (будет создан новый)</span>
+                <input type="file" id="excelInput" accept=".xlsx" class="hidden" onchange="handleExcelSelect(this)">
+            </div>
+        </div>
+
+        <!-- Text Input -->
+        <div class="mb-8">
+            <label class="block text-sm font-bold text-[#34495e] mb-3 ml-1">Или введите текст вручную:</label>
+            <textarea id="textContent" rows="3" class="w-full border border-[#dcdfe6] rounded-2xl p-5 text-sm focus:ring-4 focus:ring-blue-100 focus:border-[#3498db] outline-none transition-all resize-none" placeholder="Вставьте описание компаний здесь..."></textarea>
+        </div>
+
+        <!-- Progress -->
+        <div id="progressContainer" class="hidden mb-8">
+            <div class="w-full bg-gray-100 rounded-full h-3 mb-3 overflow-hidden">
+                <div id="progressBar" class="bg-gradient-to-r from-blue-400 to-blue-600 h-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <p id="statusText" class="text-center text-sm font-medium text-gray-500 italic">Анализируем данные...</p>
+        </div>
+
+        <!-- Action Button -->
+        <button id="processBtn" class="w-full bg-[#2c3e50] hover:bg-[#1a252f] text-white font-extrabold py-5 rounded-2xl text-xl transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+            ЗАПУСТИТЬ ОБРАБОТКУ
+        </button>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const filesUl = document.getElementById('filesUl');
+        const excelInput = document.getElementById('excelInput');
+        const excelFileName = document.getElementById('excelFileName');
+        const processBtn = document.getElementById('processBtn');
+        
+        let selectedFiles = [];
+        let selectedExcel = null;
+
+        dropZone.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => handleFiles(e.target.files);
+
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('drop-zone--over'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('drop-zone--over');
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drop-zone--over');
+            handleFiles(e.dataTransfer.files);
+        };
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files);
+            if (selectedFiles.length > 0) {
+                fileList.classList.remove('hidden');
+                filesUl.innerHTML = selectedFiles.map(f => `<li>${f.name}</li>`).join('');
+            } else {
+                fileList.classList.add('hidden');
+            }
+        }
+
+        function handleExcelSelect(input) {
+            if (input.files && input.files[0]) {
+                selectedExcel = input.files[0];
+                excelFileName.innerText = selectedExcel.name;
+                excelFileName.classList.add('text-blue-600', 'font-semibold');
+            }
+        }
+
+        processBtn.onclick = async () => {
+            const text = document.getElementById('textContent').value;
+            if (selectedFiles.length === 0 && !text.trim()) {
+                alert('Пожалуйста, загрузите файлы или введите текст.');
+                return;
+            }
+
+            processBtn.disabled = true;
+            document.getElementById('progressContainer').classList.remove('hidden');
+            const bar = document.getElementById('progressBar');
+            const status = document.getElementById('statusText');
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                if (progress < 90) {
+                    progress += (90 - progress) * 0.1;
+                    bar.style.width = progress + '%';
+                }
+            }, 400);
+
+            const formData = new FormData();
+            formData.append('text', text);
+            selectedFiles.forEach(f => formData.append('files', f));
+            if (selectedExcel) {
+                formData.append('existing_excel', selectedExcel);
+            }
+
+            try {
+                const response = await fetch('/process', { method: 'POST', body: formData });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    if (data.error === 'session_expired' && data.redirect) {
+                        window.location.href = data.redirect;
+                        return;
+                    }
+                    throw new Error(data.error || 'Ошибка сервера');
+                }
+                
+                clearInterval(interval);
+                bar.style.width = '100%';
+                status.innerText = 'Готово! Скачивание начнется автоматически.';
+
+                if (data.download_url) {
+                    window.location.href = data.download_url;
+                } else {
+                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            } finally {
+                setTimeout(() => {
+                    processBtn.disabled = false;
+                    document.getElementById('progressContainer').classList.add('hidden');
+                    bar.style.width = '0%';
+                }, 3000);
+            }
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подтверждение — Интеллектуальный помощник</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .code-input:focus { border-color: #3498db; box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.1); }
+    </style>
+</head>
+<body class="bg-[#f4f7fa] min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-[30px] shadow-xl border border-[#e0e6ed] max-w-md w-full p-10">
+        
+        <!-- Logo -->
+        <div class="flex justify-center mb-8">
+            <img src="/static/logo.png" alt="Logo" class="h-20 object-contain" onerror="this.style.display='none'">
+        </div>
+
+        <div class="text-center mb-8">
+            <h1 class="text-2xl font-extrabold text-[#2c3e50] tracking-tight">Введите код</h1>
+            <p class="text-[#7f8c8d] mt-2 text-sm">Мы отправили письмо на <br><span class="font-semibold text-[#2c3e50]">{{ email }}</span></p>
+        </div>
+
+        {% if error %}
+        <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/verify" method="POST" class="space-y-6">
+            <input type="hidden" name="email" value="{{ email }}">
+            <div>
+                <label class="block text-xs font-bold text-[#34495e] uppercase tracking-wider mb-2 ml-1 text-center">6-значный код</label>
+                <input type="text" name="code" maxlength="6" required pattern="\d{6}"
+                    class="w-full border border-[#dcdfe6] rounded-xl p-4 text-center text-2xl font-bold tracking-[0.5em] focus:ring-4 focus:ring-blue-100 focus:border-[#3498db] outline-none transition-all" 
+                    placeholder="000000" autofocus>
+            </div>
+
+            <button type="submit" class="w-full bg-[#2c3e50] hover:bg-[#1a252f] text-white font-extrabold py-4 rounded-xl text-lg transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 active:scale-95">
+                ПОДТВЕРДИТЬ
+            </button>
+        </form>
+
+        <div class="mt-8 text-center">
+            <a href="/login" class="text-sm text-[#3498db] hover:underline font-medium">Вернуться назад</a>
+        </div>
+    </div>
+</body>
+</html>
