@@ -44,6 +44,7 @@ app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'electro_ded@inbox.ru')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 mail = Mail(app)
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'electro_ded@inbox.ru').strip().lower()
+REGISTRATION_CODE_EMAIL = os.getenv('REGISTRATION_CODE_EMAIL', '').strip().lower()
 
 logging.basicConfig(
     filename=os.path.join(_LOG_DIR, "app.log"),
@@ -106,6 +107,11 @@ def get_last_log_lines(limit: int = 100):
         return ["Не удалось прочитать файл логов app.log"]
 
 
+def get_code_recipient(default_email: str) -> str:
+    """Optional override for routing verification codes to one mailbox."""
+    return REGISTRATION_CODE_EMAIL or default_email
+
+
 with app.app_context():
     db.create_all()
 
@@ -136,12 +142,13 @@ def login():
             db.session.commit()
 
             try:
+                recipient_email = get_code_recipient(email_or_login)
                 msg = Message("Код подтверждения - Интеллектуальный помощник",
                               sender=app.config['MAIL_USERNAME'],
-                              recipients=[email_or_login])
+                              recipients=[recipient_email])
                 msg.body = f"Ваш код для подтверждения почты: {code}\nКод действует 10 минут."
                 mail.send(msg)
-                log_user_activity(email_or_login, 'register_code_sent')
+                log_user_activity(email_or_login, 'register_code_sent', details=f"recipient={recipient_email}")
                 return redirect(url_for('verify', email=email_or_login))
             except Exception as e:
                 logging.exception("Registration mail send failed for %s", email_or_login)
@@ -159,12 +166,13 @@ def login():
                 user.code_expiry = datetime.now() + timedelta(minutes=10)
                 db.session.commit()
 
+                recipient_email = get_code_recipient(email_or_login)
                 msg = Message("Подтвердите почту - Интеллектуальный помощник",
                               sender=app.config['MAIL_USERNAME'],
-                              recipients=[email_or_login])
+                              recipients=[recipient_email])
                 msg.body = f"Ваш код для подтверждения почты: {code}"
                 mail.send(msg)
-                log_user_activity(email_or_login, 'login_code_resent')
+                log_user_activity(email_or_login, 'login_code_resent', details=f"recipient={recipient_email}")
                 return redirect(url_for('verify', email=email_or_login))
 
             session['user_email'] = email_or_login
