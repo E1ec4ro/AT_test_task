@@ -27,6 +27,14 @@
     <div class="bg-white rounded-[30px] shadow-xl border border-[#e0e6ed] max-w-2xl w-full p-8 md:p-12 relative">
         
         <div class="absolute top-6 right-6 flex items-center gap-4">
+            {% if is_admin %}
+            <a href="/admin" class="flex items-center text-xs font-bold text-gray-400 hover:text-blue-500 transition-colors uppercase tracking-widest group">
+                <span>Админка</span>
+                <svg class="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.343-3 3m6 0a3 3 0 11-6 0m9 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </a>
+            {% endif %}
             <a href="/logout" class="flex items-center text-xs font-bold text-gray-400 hover:text-red-500 transition-colors uppercase tracking-widest group">
                 <span>Выйти</span>
                 <svg class="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">

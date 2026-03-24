@@ -11,6 +11,7 @@ from excel_handler import ExcelHandler
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import func
 
 load_dotenv()
 
@@ -42,6 +43,7 @@ app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'False') == 'True'
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'electro_ded@inbox.ru')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 mail = Mail(app)
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'electro_ded@inbox.ru').strip().lower()
 
 logging.basicConfig(
     filename=os.path.join(_LOG_DIR, "app.log"),
@@ -196,7 +198,52 @@ def index():
         session.clear()
         return redirect(url_for('login', error="Сессия завершена или аккаунт заблокирован"))
 
-    return render_template('index.html')
+    is_admin = user.email.lower() == ADMIN_EMAIL
+    return render_template('index.html', is_admin=is_admin)
+
+
+@app.route('/admin')
+def admin_panel():
+    user_email = session.get('user_email')
+    if not user_email:
+        return redirect(url_for('login'))
+    if user_email.lower() != ADMIN_EMAIL:
+        return redirect(url_for('index'))
+
+    recent_logins = (
+        User.query
+        .filter(User.last_login.isnot(None))
+        .order_by(User.last_login.desc())
+        .limit(50)
+        .all()
+    )
+
+    usage_stats = (
+        db.session.query(
+            UserActivity.user_email,
+            func.count(UserActivity.id).label('usage_count'),
+            func.max(UserActivity.created_at).label('last_usage')
+        )
+        .filter(UserActivity.action == 'ai_process_success')
+        .group_by(UserActivity.user_email)
+        .order_by(func.count(UserActivity.id).desc())
+        .all()
+    )
+
+    recent_activities = (
+        UserActivity.query
+        .order_by(UserActivity.created_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    return render_template(
+        'admin.html',
+        admin_email=user_email,
+        recent_logins=recent_logins,
+        usage_stats=usage_stats,
+        recent_activities=recent_activities
+    )
 
 
 @app.route('/logout')
